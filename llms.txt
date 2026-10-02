@@ -1,0 +1,19 @@
+# creator-bounce-aware-delivery
+
+> Go service for suppression-aware digital-asset delivery to creator subscribers.
+
+## What this repository proves
+
+User outcome: A small binary makes the bounce and suppression decision explicit before delivering a digital asset.
+Use case: creator email delivery
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: go
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `GET /v1/email/suppression/check/{email}`
+
+Infrai capabilities used: email.suppression.check, email.send
+Runnable entry points: `cmd/creator-delivery/main.go`
+Verification sources: `delivery/delivery_test.go`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt

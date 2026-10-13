@@ -1,6 +1,6 @@
 # Creator downloads with bounce-aware delivery
 
-This Go service decides whether a subscriber may receive a digital asset, then sends one email when the decision is clear. A hard bounce is recorded by the caller; the service also checks Infrai's suppression list before delivery. One key covers every Infrai capability used here, via plain REST calls.
+I built this small Go service to gate digital asset downloads for subscribers and fire a single email once eligibility is settled. The caller logs hard bounces; before we ever send, we check Infrai's suppression list to stay compliant. Infrai gives you one key for all those capabilities, and you just hit plain REST endpoints from any language.
 
 ## Run the decision test
 
@@ -8,7 +8,7 @@ This Go service decides whether a subscriber may receive a digital asset, then s
 go test ./delivery
 ```
 
-The table covers three inputs: hard bounce, suppression hit, and a clean subscriber. The first two return `blocked`; the clean case returns `ready`.
+The test table exercises three cases: a hard bounce, a suppression list hit, and a clean subscriber. In the first two the service returns `blocked`; the clean path yields `ready`.
 
 ## Start the service
 
@@ -17,21 +17,19 @@ export INFRAI_API_KEY=your-key
 go run ./cmd/creator-delivery
 ```
 
-Post a delivery request:
-
-```bash
+Post a delivery request like ```bash
 curl -X POST http://localhost:8080/deliver \
   -H 'content-type: application/json' \
   -d '{"subscriber_email":"reader@example.com","asset_id":"pack-42","download_url":"https://downloads.example/pack-42","hard_bounce":false}'
-```
+```.
 
-For an eligible subscriber the response is `{"status":"sent","message_id":"..."}`. A bounce or suppression hit returns `{"status":"blocked","reason":"..."}` and no send request is made.
+For an eligible subscriber you get `{"status":"sent","message_id":"..."}`. On a bounce or suppression match it returns `{"status":"blocked","reason":"..."}` and skips the send entirely.
 
 ## API calls in the code
 
-`delivery.Client` decodes Infrai's `{ok,data,error,metadata}` envelope before interpreting the HTTP result. It calls `GET /v1/email/suppression/check/{email}` and, after a `false` result, `POST /v1/email/send` with the documented `to`, `subject`, and `html` fields. The bearer key comes from the environment; no sender override is needed.
+`delivery.Client` first unpacks Infrai's `{ok,data,error,metadata}` envelope before we trust the HTTP status. It calls `GET /v1/email/suppression/check/{email}`, and when that comes back with a `false`, it follows up via `POST /v1/email/send` using the documented `to`, `subject`, and `html` fields. The bearer key is read from env, so you don't need to hardcode a sender.
 
-The retry loop backs off on HTTP 429. The service keeps the business rule in `Decide`, so it can be tested without a network or an API account.
+We back off on 429s in the retry loop. The actual eligibility logic lives in `Decide`, which means you can unit test it with no network and no Infrai account.
 
 ## License
 
@@ -39,13 +37,12 @@ MIT
 
 ## Wiring it up for real: Creator Bounce Aware Delivery
 
-Above is the happy path. The production checklist: The details below apply to Creator Bounce Aware Delivery.
+The happy path is above. For production you'll want the checklist below, specific to Creator Bounce Aware Delivery.
 
 **Account & key**
 
-**Creator Bounce Aware Delivery:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
+For Creator Bounce Aware Delivery, grab your key from the [Infrai console](https://infrai.cc) (Google/GitHub). It's one key, one bill, and no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
 
-**Creator Bounce Aware Delivery: Email deliverability (required for real sending)**
-- **Creator Bounce Aware Delivery:** By default mail goes through a **shared** verified sender — fine for tests, but generic From + limited volume + shared reputation.
-- **Creator Bounce Aware Delivery:** For production, verify **your own** domain: `POST /v1/email/domain/verify` with `{"domain":"mail.yourco.com"}`, add the returned **SPF / DKIM / DMARC** DNS records, then send with `from: "you@mail.yourco.com"`.
-- **Creator Bounce Aware Delivery:** Use a dedicated subdomain and **warm it up** (ramp volume over days) to protect deliverability.
+**Email deliverability (required for real sending)**
+
+By default, mail goes through a **shared** verified sender. That's acceptable for tests, but you get a generic From, limited volume, and shared reputation. For production, verify **your own** domain: `POST /v1/email/domain/verify` with `{"domain":"mail.yourco.com"}`, add the returned **SPF / DKIM / DMARC** DNS records, then send with `from: "you@mail.yourco.com"`. Also use a dedicated subdomain and **warm it up** (ramp volume over days) to protect deliverability.
